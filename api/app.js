@@ -23,6 +23,12 @@ app.get ("/", (req, res) =>{
     res.send("You're not supposed to be here...");
 });
 
+app.get("/alleys", async (req, res) => {
+    const result = await dal.getAllAlleys();
+    console.log(result);
+    res.json(result);
+});
+
 app.get("/reviews", async (req, res) =>{
     const result = await dal.getAllReviews();
     console.log(result);
@@ -35,8 +41,36 @@ app.get("/reviews/:author", async (req, res) => {
     res.json(result); 
 });
 
-app.get("/reviews-by-alley/:alley", async (req, res) => {
-    const result = await dal.filterReviewsByAlley(req.params.alley);
+app.get("/reviews-by-alley/:alley_id", async (req, res) => {
+    const result = await dal.filterReviewsByAlley(req.params.alley_id);
+    console.log(result);
+    res.json(result); 
+});
+
+app.get("/switch-pool", async (req, res) => {
+    const result = await dal.swapPool();
+    console.log(result);
+    res.json(result); 
+});
+
+app.post("/add-review", async (req, res) => {
+    /*
+    req.body should look like:
+    {
+        "alley": "alley",
+        "author": "author of the review",
+        "rating": "score outta 10",
+        "review_story": "description of the review",
+        "comments": "list of comments, note that this will be a Foreign key to the comments table. -> Implement later"
+    }
+    */
+    const result = await dal.addReview(req.body);
+    console.log(result);
+    res.json(result); 
+});
+
+app.get("/single-review/:id", async (req, res) => {
+    const result = await dal.getSpecificReview(req.params.id);
     console.log(result);
     res.json(result); 
 });

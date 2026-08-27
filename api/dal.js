@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import bcrypt from "bcryptjs";
 const AUTH_USER_POOL = new Pool({
     host: "localhost",
     port: 5432, //Standard port, if err check if the port has been modified
@@ -15,9 +16,9 @@ const NON_AUTH_USER_POOL = new Pool({
 });
 let currentPool = NON_AUTH_USER_POOL;
 const placeholderuser = {
-    _id: "c0a2ab55-5f85-49aa-afc9-737f91b7eb03",
-    username: "devJerry",
-    password: "pass123"
+    _id: "0a82179e-fe66-48ba-a068-b9803fd9caf4",
+    username: "devOwen",
+    password: "$2b$10$xMaC0ZIYhVqO/LJtnbHxOuyxyDvCfh6oE4Y9h/8vo2pjj4XI9C7s6"
 }
 let dal = {
     swapPool: async function() {
@@ -81,9 +82,14 @@ let dal = {
             client.release();
         }
     },
-    filterReviewsByAlley: async function(alley_id) {
+    filterReviewsByAlley: async function(alley_name) {
         const client = await currentPool.connect();
         try {
+            const target_alleys = await client.query("SELECT _id FROM alleys WHERE name = $1", [alley_name]);
+            if (target_alleys.rows.length === 0){
+                return []; //No such alley, fool
+            }
+            const alley_id = target_alleys.rows[0]._id; //Actually pick out the ID
             const result = await client.query(`
                 SELECT reviews.*, alleys.name AS alley_name, users.username AS author_name
                 FROM reviews
@@ -112,7 +118,6 @@ let dal = {
         }
     },
     addReview: async function(review, author) {
-        author = placeholderuser; //Replace soon....
         const client = await currentPool.connect();
         try {
             const result = await client.query("INSERT INTO reviews (alley_id, author_id, rating, review_story) VALUES ($1, $2, $3, $4) RETURNING *", [review.alley_id, author._id, review.rating, review.review_story]);
@@ -120,6 +125,37 @@ let dal = {
         } catch (err) {
             console.error("Failure adding review", err);
             return;
+        } finally {
+            client.release();
+        }
+    },
+    login: async function (username, password) {
+        const client = await NON_AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query("SELECT * FROM users WHERE username = $1", [username]);
+            if (result.rows.length === 0) {
+                console.log("DAL: No such user");
+                return false;
+            }
+            const match = await bcrypt.compare(password, result.rows[0].password);
+            return match ? result.rows[0] : null;
+        } catch (err) {
+            console.error("Failure logging in", err);
+            return false;
+        } finally {
+            client.release();
+        }
+    },
+    createUser: async function (username, password) {
+        const client = await NON_AUTH_USER_POOL.connect();
+        try {
+            const hashed = await bcrypt.hash(password, 10);
+            const result = await client.query("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *", [username, hashed]);
+            return { user: result.rows[0] };
+        } catch (err) {
+            if (err.code === '23505') return { error: 'username_taken' };
+            console.error("Failure creating user", err);
+            return { error: 'unknown' };
         } finally {
             client.release();
         }

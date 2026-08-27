@@ -29,6 +29,7 @@ export default function AddReviewPage() {
       const res = await fetch(`${API}/add-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ...form, rating: Number(form.rating) }),
       });
       if (res.ok) {

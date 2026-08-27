@@ -59,7 +59,7 @@ export default function ReviewsPage() {
           {filterType !== 'all' && (
             <input
               type="text"
-              placeholder={filterType === 'author' ? 'Author name...' : 'Alley UUID...'}
+              placeholder={filterType === 'author' ? 'Author name...' : 'Alley Name...'}
               value={filterValue}
               onChange={e => setFilterValue(e.target.value)}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 dark:bg-zinc-900 dark:text-white dark:border-zinc-700 flex-1 min-w-40"

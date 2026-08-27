@@ -21,6 +21,7 @@ const ALLOWED_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:3000";
 app.use((req, res, next) =>{
     res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Credentials", "true");
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
@@ -95,6 +96,45 @@ app.get("/single-review/:id", async (req, res) => {
     console.log(result);
     res.json(result); 
 });
+
+app.get("/comments/:review_id", async (req, res) => {
+    const result = await dal.getComments(req.params.review_id);
+    console.log(result);
+    res.json(result);
+});
+
+app.put("/review/:id", _authenticateToken, async (req, res) => {
+    const { rating, review_story } = req.body;
+    const result = await dal.editReview(req.params.id, rating, review_story, req.user._id);
+    if (!result) return res.status(404).json({ error: "Review not found or not yours." });
+    return res.json(result);
+});
+
+app.delete("/review/:id", _authenticateToken, async (req, res) => {
+    const deleted = await dal.deleteReview(req.params.id, req.user._id);
+    if (!deleted) return res.status(404).json({ error: "Review not found or not yours." });
+    return res.json({ success: true });
+});
+
+app.put("/comment/:id", _authenticateToken, async (req, res) => {
+    const result = await dal.editComment(req.params.id, req.body.content, req.user._id);
+    if (!result) return res.status(404).json({ error: "Comment not found or not yours." });
+    return res.json(result);
+});
+
+app.delete("/comment/:id", _authenticateToken, async (req, res) => {
+    const deleted = await dal.deleteComment(req.params.id, req.user._id);
+    if (!deleted) return res.status(404).json({ error: "Comment not found or not yours." });
+    return res.json({ success: true });
+});
+
+app.post("/add-comment", _authenticateToken, async (req, res) => {
+    const result = await dal.addComment(req.body.review, req.body.comment, req.user);
+    console.log(result);
+    res.json(result);
+});
+
+
 
 app.post("/register", async (req, res) => {
     const { username, password } = req.body;

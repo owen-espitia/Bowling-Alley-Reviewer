@@ -14,23 +14,9 @@ const NON_AUTH_USER_POOL = new Pool({
     user: "non_auth_user", //
     password: "non_authpass" //
 });
-let currentPool = NON_AUTH_USER_POOL;
-const placeholderuser = {
-    _id: "0a82179e-fe66-48ba-a068-b9803fd9caf4",
-    username: "devOwen",
-    password: "$2b$10$xMaC0ZIYhVqO/LJtnbHxOuyxyDvCfh6oE4Y9h/8vo2pjj4XI9C7s6"
-}
 let dal = {
-    swapPool: async function() {
-        if ( currentPool === NON_AUTH_USER_POOL){
-            currentPool = AUTH_USER_POOL;
-        } else {
-            currentPool = NON_AUTH_USER_POOL;
-        }
-        return currentPool;
-    },
     getAllReviews: async function() {
-        const client = await currentPool.connect();
+        const client = await NON_AUTH_USER_POOL.connect();
         try {
             const result = await client.query(`
                 SELECT reviews.*, alleys.name AS alley_name, users.username AS author_name
@@ -47,7 +33,7 @@ let dal = {
         }
     },
     getSpecificReview: async function(_id) {
-        const client = await currentPool.connect();
+        const client = await NON_AUTH_USER_POOL.connect();
         try {
             const result = await client.query(`
                 SELECT reviews.*, alleys.name AS alley_name, users.username AS author_name
@@ -65,7 +51,7 @@ let dal = {
         }
     },
     filterReviewsByAuthor: async function(author) {
-        const client = await currentPool.connect();
+        const client = await NON_AUTH_USER_POOL.connect();
         try {
             const result = await client.query(`
                 SELECT reviews.*, alleys.name AS alley_name, users.username AS author_name
@@ -83,7 +69,7 @@ let dal = {
         }
     },
     filterReviewsByAlley: async function(alley_name) {
-        const client = await currentPool.connect();
+        const client = await NON_AUTH_USER_POOL.connect();
         try {
             const target_alleys = await client.query("SELECT _id FROM alleys WHERE name = $1", [alley_name]);
             if (target_alleys.rows.length === 0){
@@ -106,7 +92,7 @@ let dal = {
         }
     },
     getAllAlleys: async function() {
-        const client = await currentPool.connect();
+        const client = await NON_AUTH_USER_POOL.connect();
         try {
             const result = await client.query("SELECT _id, name FROM alleys ORDER BY name");
             return result.rows;
@@ -118,7 +104,7 @@ let dal = {
         }
     },
     addReview: async function(review, author) {
-        const client = await currentPool.connect();
+        const client = await AUTH_USER_POOL.connect();
         try {
             const result = await client.query("INSERT INTO reviews (alley_id, author_id, rating, review_story) VALUES ($1, $2, $3, $4) RETURNING *", [review.alley_id, author._id, review.rating, review.review_story]);
             return result;
@@ -156,6 +142,96 @@ let dal = {
             if (err.code === '23505') return { error: 'username_taken' };
             console.error("Failure creating user", err);
             return { error: 'unknown' };
+        } finally {
+            client.release();
+        }
+    },
+    getComments: async function (review_id) {
+        const client = await NON_AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query(`
+                SELECT comments.*, users.username AS author_name
+                FROM comments
+                LEFT JOIN users ON comments.author_id = users._id
+                WHERE comments.review_id = $1
+            `, [review_id]);
+            return result.rows;
+        } catch (err) {
+            console.error("Failure getting comments", err);
+            return [];
+        } finally {
+            client.release();
+        }
+    },
+    editReview: async function (review_id, rating, review_story, author_id) {
+        const client = await AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query(
+                "UPDATE reviews SET rating = $1, review_story = $2 WHERE _id = $3 AND author_id = $4 RETURNING *",
+                [rating, review_story, review_id, author_id]
+            );
+            return result.rows[0] ?? null;
+        } catch (err) {
+            console.error("Failure editing review", err);
+            return null;
+        } finally {
+            client.release();
+        }
+    },
+    deleteReview: async function (review_id, author_id) {
+        const client = await AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query(
+                "DELETE FROM reviews WHERE _id = $1 AND author_id = $2 RETURNING _id",
+                [review_id, author_id]
+            );
+            return result.rowCount > 0;
+        } catch (err) {
+            console.error("Failure deleting review", err);
+            return false;
+        } finally {
+            client.release();
+        }
+    },
+    editComment: async function (comment_id, content, author_id) {
+        const client = await AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query(
+                "UPDATE comments SET content = $1 WHERE _id = $2 AND author_id = $3 RETURNING *",
+                [content, comment_id, author_id]
+            );
+            return result.rows[0] ?? null;
+        } catch (err) {
+            console.error("Failure editing comment", err);
+            return null;
+        } finally {
+            client.release();
+        }
+    },
+    deleteComment: async function (comment_id, author_id) {
+        const client = await AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query(
+                "DELETE FROM comments WHERE _id = $1 AND author_id = $2 RETURNING _id",
+                [comment_id, author_id]
+            );
+            return result.rowCount > 0;
+        } catch (err) {
+            console.error("Failure deleting comment", err);
+            return false;
+        } finally {
+            client.release();
+        }
+    },
+    addComment: async function (review, comment, author) {
+        //Note that review._id is a FK in the database, as well as author._id!
+        const client = await AUTH_USER_POOL.connect();
+        try {
+            const result = await client.query("INSERT INTO comments (content, review_id, author_id) VALUES ($1, $2, $3) RETURNING *", [comment, review._id, author._id]);
+            return result;
+        } catch (err) {
+            console.error("Failure posting comment", err);
+            return;
         } finally {
             client.release();
         }
